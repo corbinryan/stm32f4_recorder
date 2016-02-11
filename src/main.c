@@ -9,6 +9,9 @@
 #include <stdlib.h>
 #include "diag/Trace.h"
 
+#include "stm32f4xx.h"
+#include "stm32f4xx_hal.h"
+
 // ----------------------------------------------------------------------------
 //
 // Semihosting STM32F4 empty sample (trace via DEBUG).
@@ -29,27 +32,40 @@
 #pragma GCC diagnostic ignored "-Wmissing-declarations"
 #pragma GCC diagnostic ignored "-Wreturn-type"
 
+
+void init_gpio(void);
+
+void init_gpio(void) {
+	__HAL_RCC_GPIOA_CLK_ENABLE();
+	GPIO_InitTypeDef gpioinit = {
+			.Pin = GPIO_PIN_0,
+			.Mode = GPIO_MODE_IT_RISING,
+			.Pull = GPIO_NOPULL,
+			.Speed = GPIO_SPEED_LOW
+	};
+
+	HAL_GPIO_Init(GPIOA, &gpioinit);
+}
+
 int
 main(int argc, char* argv[])
 {
   // At this stage the system clock should have already been configured
   // at high speed.
 
-#define LOOP_COUNT (5)
-  int loops = LOOP_COUNT;
-  if (argc > 1)
-    {
-      // If defined, get the number of loops from the command line,
-      // configurable via semihosting.
-      loops = atoi (argv[1]);
-    }
-
-  // Short loop.
-  for (int i = 0; i < loops; i++)
-    {
-       // Add your code here.
-    }
-  return 0;
+	HAL_StatusTypeDef halrc;
+	halrc = HAL_Init();
+	if(halrc == HAL_OK) {
+		init_gpio();
+	}
+	if(halrc != HAL_OK) {
+		// TODO: flash an LED or something... once you figure out how to do that
+	}
+	while(1) {
+		GPIO_PinState rc = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0);
+		trace_printf("Read BTN %d\n", rc == GPIO_PIN_SET);
+	}
+	return 0;
 }
 
 #pragma GCC diagnostic pop
