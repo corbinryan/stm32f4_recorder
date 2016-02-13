@@ -32,7 +32,9 @@
 #pragma GCC diagnostic ignored "-Wmissing-declarations"
 #pragma GCC diagnostic ignored "-Wreturn-type"
 
+volatile int btnPressedFlag;
 
+void EXTI0_IRQHandler(void);
 void init_gpio(void);
 
 void init_gpio(void) {
@@ -45,6 +47,17 @@ void init_gpio(void) {
 	};
 
 	HAL_GPIO_Init(GPIOA, &gpioinit);
+	HAL_NVIC_SetPriority(EXTI0_IRQn, 1, 0);
+	HAL_NVIC_EnableIRQ(EXTI0_IRQn);
+
+}
+
+
+void EXTI0_IRQHandler(void){
+	__HAL_GPIO_EXTI_CLEAR_IT((GPIO_PIN_0));
+	HAL_NVIC_ClearPendingIRQ(EXTI0_IRQn);
+	btnPressedFlag = 1;
+
 }
 
 int
@@ -52,6 +65,8 @@ main(int argc, char* argv[])
 {
   // At this stage the system clock should have already been configured
   // at high speed.
+
+	btnPressedFlag = 0;
 
 	HAL_StatusTypeDef halrc;
 	halrc = HAL_Init();
@@ -62,8 +77,12 @@ main(int argc, char* argv[])
 		// TODO: flash an LED or something... once you figure out how to do that
 	}
 	while(1) {
-		GPIO_PinState rc = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0);
-		trace_printf("Read BTN %d\n", rc == GPIO_PIN_SET);
+		if(btnPressedFlag == 1) {
+			GPIO_PinState rc = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0);
+			trace_printf("Read BTN %d\n", rc == GPIO_PIN_SET);
+			btnPressedFlag = 0;
+		}
+
 	}
 	return 0;
 }
