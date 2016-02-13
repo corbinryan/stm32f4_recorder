@@ -32,31 +32,106 @@
 #pragma GCC diagnostic ignored "-Wmissing-declarations"
 #pragma GCC diagnostic ignored "-Wreturn-type"
 
-volatile int btnPressedFlag;
+volatile int usrBtnPressedFlag;
+
+enum RecorderStates {IDLE, RECORD, PLAYBACK};
 
 void EXTI0_IRQHandler(void);
 void init_gpio(void);
+GPIO_PinState readUserButton(void);
+enum RecorderStates NextState(enum RecorderStates currentState);
+void RecordLedOff(void);
+void RecordLedOn(void);
+void PlaybackLedOff(void);
+void PlaybackLedOn(void);
+
 
 void init_gpio(void) {
+	// User Button
 	__HAL_RCC_GPIOA_CLK_ENABLE();
-	GPIO_InitTypeDef gpioinit = {
+	GPIO_InitTypeDef gpio_init_user_btn = {
 			.Pin = GPIO_PIN_0,
 			.Mode = GPIO_MODE_IT_RISING,
 			.Pull = GPIO_NOPULL,
 			.Speed = GPIO_SPEED_LOW
 	};
-
-	HAL_GPIO_Init(GPIOA, &gpioinit);
+	HAL_GPIO_Init(GPIOA, &gpio_init_user_btn);
+	// Set Up User Button External Interrupt
 	HAL_NVIC_SetPriority(EXTI0_IRQn, 1, 0);
 	HAL_NVIC_EnableIRQ(EXTI0_IRQn);
 
+	// Blue Button - Program Running
+	__HAL_RCC_GPIOD_CLK_ENABLE();
+	GPIO_InitTypeDef gpio_init_run_led =  {
+			.Pin = GPIO_PIN_15,
+			.Mode = GPIO_MODE_OUTPUT_PP,
+			.Pull = GPIO_NOPULL,
+			.Speed = GPIO_SPEED_LOW
+	};
+	HAL_GPIO_Init(GPIOD, &gpio_init_run_led);
+	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_15, GPIO_PIN_SET);
+
+	// Red Button - Audio Recording
+	__HAL_RCC_GPIOD_CLK_ENABLE();
+	GPIO_InitTypeDef gpio_init_recording_led =  {
+			.Pin = GPIO_PIN_14,
+			.Mode = GPIO_MODE_OUTPUT_PP,
+			.Pull = GPIO_NOPULL,
+			.Speed = GPIO_SPEED_LOW
+	};
+	HAL_GPIO_Init(GPIOD, &gpio_init_recording_led);
+	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_14, GPIO_PIN_RESET);
+
+	//Green Button - Audio Playback
+	__HAL_RCC_GPIOD_CLK_ENABLE();
+	GPIO_InitTypeDef gpio_init_playback_led =  {
+			.Pin = GPIO_PIN_12,
+			.Mode = GPIO_MODE_OUTPUT_PP,
+			.Pull = GPIO_NOPULL,
+			.Speed = GPIO_SPEED_LOW
+		};
+		HAL_GPIO_Init(GPIOD, &gpio_init_playback_led);
+		HAL_GPIO_WritePin(GPIOD, GPIO_PIN_12, GPIO_PIN_RESET);
 }
+
+GPIO_PinState readUserButton(void) {
+	HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0);
+}
+
+enum RecorderStates NextState(enum RecorderStates currentState) {
+	enum RecorderStates retval;
+	switch(currentState) {
+		case IDLE:
+			retval = RECORD;
+			PlaybackLedOff();
+			RecordLedOn();
+			break;
+		case RECORD:
+			retval = PLAYBACK;
+			PlaybackLedOn();
+			RecordLedOff();
+			break;
+		case PLAYBACK:
+		default:
+			retval = IDLE;
+			PlaybackLedOff();
+			RecordLedOff();
+			break;
+	}
+
+	return retval;
+}
+
+inline void RecordLedOff(void) {HAL_GPIO_WritePin(GPIOD, GPIO_PIN_14, GPIO_PIN_RESET);}
+inline void RecordLedOn(void) {HAL_GPIO_WritePin(GPIOD, GPIO_PIN_14, GPIO_PIN_SET);}
+inline void PlaybackLedOff(void) {HAL_GPIO_WritePin(GPIOD, GPIO_PIN_12, GPIO_PIN_RESET);}
+inline void PlaybackLedOn(void){HAL_GPIO_WritePin(GPIOD, GPIO_PIN_12, GPIO_PIN_SET);}
 
 
 void EXTI0_IRQHandler(void){
 	__HAL_GPIO_EXTI_CLEAR_IT((GPIO_PIN_0));
 	HAL_NVIC_ClearPendingIRQ(EXTI0_IRQn);
-	btnPressedFlag = 1;
+	usrBtnPressedFlag = 1;
 
 }
 
@@ -66,7 +141,8 @@ main(int argc, char* argv[])
   // At this stage the system clock should have already been configured
   // at high speed.
 
-	btnPressedFlag = 0;
+	usrBtnPressedFlag = 0;
+	enum RecorderStates State = IDLE;
 
 	HAL_StatusTypeDef halrc;
 	halrc = HAL_Init();
@@ -77,10 +153,9 @@ main(int argc, char* argv[])
 		// TODO: flash an LED or something... once you figure out how to do that
 	}
 	while(1) {
-		if(btnPressedFlag == 1) {
-			GPIO_PinState rc = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0);
-			trace_printf("Read BTN %d\n", rc == GPIO_PIN_SET);
-			btnPressedFlag = 0;
+		if(usrBtnPressedFlag == 1) {
+			State = NextState(State);
+			usrBtnPressedFlag = 0;
 		}
 
 	}
