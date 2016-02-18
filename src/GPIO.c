@@ -12,12 +12,19 @@ typedef struct gpio_struct {
 	uint16_t Pin;
 } GpioStruct;
 
+typedef struct gpio_debounce_struct {
+	const GpioStruct *Pin;
+	int LastRawValue;
+	int Value;
+} GpioInputValueStruct;
+
 inline void SetOutput(const GpioStruct *output, int state);
 inline int ReadInput(const GpioStruct *input);
+inline int ReadDebouncedInput(const GpioInputValueStruct *input);
 
 const GpioStruct UserButtonPin = {
 		.Port = GPIOA,
-		.Pin = GPIO_PIN_0
+		.Pin = GPIO_PIN_0,
 };
 
 const GpioStruct ActiveLEDPin = {
@@ -35,6 +42,7 @@ const GpioStruct PlaybackLEDPin = {
 		.Pin = GPIO_PIN_12,
 };
 
+GpioInputValueStruct UserButtonDebouncedValue;
 
 void init_gpio(void) {
 	// User Button
@@ -46,9 +54,8 @@ void init_gpio(void) {
 			.Speed = GPIO_SPEED_LOW
 	};
 	HAL_GPIO_Init(UserButtonPin.Port, &gpio_init_user_btn);
-	// Set Up User Button External Interrupt
-	HAL_NVIC_SetPriority(EXTI0_IRQn, 1, 0);
-	HAL_NVIC_EnableIRQ(EXTI0_IRQn);
+
+	UserButtonDebouncedValue.Pin = &UserButtonPin;
 
 	// Blue Button - Program Running
 	__HAL_RCC_GPIOD_CLK_ENABLE();
@@ -92,8 +99,24 @@ inline int ReadInput(const GpioStruct *input) {
 	return (HAL_GPIO_ReadPin(input->Port, input->Pin) == GPIO_PIN_SET ? 1 : 0);
 }
 
+inline int ReadDebouncedInput(const GpioInputValueStruct *input) {
+	return input->Value;
+}
+
 inline void RecordLedOff(void) {SetOutput(&RecordingLEDPin, 0);}
 inline void RecordLedOn(void) {SetOutput(&RecordingLEDPin, 1);}
 inline void PlaybackLedOff(void) {SetOutput(&PlaybackLEDPin, 0);}
 inline void PlaybackLedOn(void){SetOutput(&PlaybackLEDPin, 1);}
-inline int ReadUserButton(void) { return ReadInput(&UserButtonPin); }
+inline int ReadUserButton(void) { return ReadDebouncedInput(&UserButtonDebouncedValue); }
+
+
+void DebounceInputsTick(void) {
+	// create an array of inputs if more than 1 input needed
+	int rawValue = ReadInput(&UserButtonPin);
+	if(UserButtonDebouncedValue.LastRawValue != UserButtonDebouncedValue.Value &&
+			UserButtonDebouncedValue.LastRawValue == rawValue) {
+			UserButtonDebouncedValue.Value = UserButtonDebouncedValue.LastRawValue;
+	} else {
+		UserButtonDebouncedValue.LastRawValue = rawValue;
+	}
+}

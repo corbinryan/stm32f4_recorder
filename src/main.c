@@ -35,10 +35,14 @@
 #include "GPIO.h"
 
 volatile int usrBtnPressedFlag;
+volatile int lastUserButtonPress;
+volatile int sysTickFlag;
 
 enum RecorderStates {IDLE, RECORD, PLAYBACK};
 
 void EXTI0_IRQHandler(void);
+void SysTick_Handler(void);
+
 enum RecorderStates NextState(enum RecorderStates currentState);
 
 
@@ -66,11 +70,9 @@ enum RecorderStates NextState(enum RecorderStates currentState) {
 	return retval;
 }
 
-void EXTI0_IRQHandler(void){
-	__HAL_GPIO_EXTI_CLEAR_IT((GPIO_PIN_0));
-	HAL_NVIC_ClearPendingIRQ(EXTI0_IRQn);
-	usrBtnPressedFlag = 1;
-
+void SysTick_Handler(void) {
+	HAL_IncTick();
+	sysTickFlag = 1;
 }
 
 int
@@ -94,6 +96,15 @@ main(int argc, char* argv[])
 		if(usrBtnPressedFlag == 1) {
 			State = NextState(State);
 			usrBtnPressedFlag = 0;
+		}
+		if(sysTickFlag == 1) {
+			DebounceInputsTick();
+			sysTickFlag = 0;
+			if(ReadUserButton() != lastUserButtonPress &&
+					!lastUserButtonPress) {
+				usrBtnPressedFlag = 1;
+			}
+			lastUserButtonPress = ReadUserButton();
 		}
 
 	}

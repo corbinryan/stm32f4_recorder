@@ -17,5 +17,6 @@ void RecordLedOn(void);
 void PlaybackLedOff(void);
 void PlaybackLedOn(void);
 int ReadUserButton(void);
+void DebounceInputsTick(void);
 
 #endif /* GPIO_H_ */
